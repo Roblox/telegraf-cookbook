@@ -161,14 +161,14 @@ action :create do
           not_if { ::File.exist?(::File.join(version_path, "telegraf", "telegraf.exe")) }
           action :unzip
         end
+      end
 
-        link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.exe" do
-          to ::File.join(version_path, "telegraf", "telegraf.exe")
-        end
+      link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.exe" do
+        to ::File.join(version_path, "telegraf", "telegraf.exe")
+      end
 
-        link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.conf" do
-          to ::File.join(version_path, "telegraf", "telegraf.conf")
-        end
+      link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.conf" do
+        to ::File.join(version_path, "telegraf", "telegraf.conf")
       end
 
       directory "#{ENV['ProgramW6432']}\\telegraf\\telegraf.d" do
