@@ -153,10 +153,22 @@ action :create do
         action :create
       end
 
-      windows_zipfile ENV['ProgramW6432'] do
-        source "#{Chef::Config[:file_cache_path]}/#{file_name}"
-        not_if { ::File.exist?("#{ENV['ProgramW6432']}\\telegraf\\telegraf.exe") }
-        action :unzip
+      version_path = "#{ENV['ProgramW6432']}\\telegraf\\#{new_resource.install_version}"
+
+      unless ::File.exist?(::File.join(version_path, "telegraf", "telegraf.exe"))
+        windows_zipfile version_path do
+          source "#{Chef::Config[:file_cache_path]}/#{file_name}"
+          not_if { ::File.exist?(::File.join(version_path, "telegraf", "telegraf.exe")) }
+          action :unzip
+        end
+
+        link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.exe" do
+          to ::File.join(version_path, "telegraf", "telegraf.exe")
+        end
+
+        link "#{ENV['ProgramW6432']}\\telegraf\\telegraf.conf" do
+          to ::File.join(version_path, "telegraf", "telegraf.conf")
+        end
       end
 
       directory "#{ENV['ProgramW6432']}\\telegraf\\telegraf.d" do

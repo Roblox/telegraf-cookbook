@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- Added versioning for Windows upgrades
+
 ## 0.12.0
 
 PR#76 - Remove deprecated `recommends`
