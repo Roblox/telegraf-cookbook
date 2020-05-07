@@ -18,13 +18,14 @@
 # limitations under the License.
 
 property :include_repository, [TrueClass, FalseClass], default: true
-property :name, String, name_property: true
 property :install_version, [String, nil], default: nil
 property :install_type, String, default: 'package'
 
 default_action :create
 
 action :create do
+  @telegraf_version = new_resource.install_version
+
   case new_resource.install_type
   when 'package'
     if platform_family?('rhel', 'amazon')
@@ -41,31 +42,45 @@ action :create do
         gpgkey  "#{node['telegraf']['package_url']}/influxdb.key"
         only_if { new_resource.include_repository }
       end
-    elsif node.platform_family? 'debian'
+    elsif platform_family? 'debian'
       package 'apt-transport-https' do
         only_if { new_resource.include_repository }
+      end
+
+      case node['kernel']['machine']
+      when 'x86_64'
+        telegraf_arch = 'amd64'
+      when 'i686', 'i386'
+        telegraf_arch = 'i386'
+      when 'armv7l', 'armv6l'
+        telegraf_arch = 'armhf'
+      when 'armv5l'
+        telegraf_arch = 'armel'
+      else
+        telegraf_arch = 'amd64'
+        Chef::Log.warn('Arch not detected properly, falling back to amd64')
       end
 
       apt_repository 'influxdb' do
         uri "#{node['telegraf']['package_url']}/#{node['platform']}"
         distribution node['lsb']['codename']
         components ['stable']
-        arch 'amd64'
+        arch telegraf_arch
         key "#{node['telegraf']['package_url']}/influxdb.key"
         only_if { new_resource.include_repository }
       end
-    elsif node.platform_family? 'windows'
+    elsif platform_family? 'windows'
       include_recipe 'chocolatey'
-    elsif node.platform_family? 'mac_os_x'
+    elsif platform_family? 'mac_os_x'
       include_recipe 'homebrew'
-      
+
       group 'telegraf' do
         action :create
       end
 
-      cookbook_file '/Library/LaunchDaemons/com.influxdata.telegraf.plist' do
+      template '/Library/LaunchDaemons/com.influxdata.telegraf.plist' do
         action :create
-        content 'com.influxdata.telegraf.plist'
+        source 'com.influxdata.telegraf.plist.erb'
         cookbook 'telegraf'
       end
 
@@ -74,15 +89,19 @@ action :create do
       raise "I do not support your platform: #{node['platform_family']}"
     end
 
-    if node.platform_family? 'windows'
+    if platform_family? 'windows'
       chocolatey_package 'telegraf' do
-        version install_version
+        version new_resource.install_version
         source node['telegraf']['chocolatey_source']
+        options node['telegraf']['chocolatey_options'] unless node['telegraf']['chocolatey_options'] == ''
         action :install
       end
     else
       package 'telegraf' do
-        version install_version
+        version new_resource.install_version
+        if platform_family? 'debian'
+          options '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
+        end
         action :install
       end
     end
@@ -90,7 +109,8 @@ action :create do
     # TODO: implement me
     Chef::Log.warn('Sorry, installing from a tarball is not yet implemented.')
   when 'file'
-    if node.platform_family?('rhel', 'amazon')
+
+    if platform_family?('rhel', 'amazon')
       file_name = "telegraf-#{new_resource.install_version}.x86_64.rpm"
       remote_file "#{Chef::Config[:file_cache_path]}/#{file_name}" do
         source "#{node['telegraf']['download_urls']['rhel']}/#{file_name}"
@@ -102,7 +122,7 @@ action :create do
         source "#{Chef::Config[:file_cache_path]}/#{file_name}"
         action :install
       end
-    elsif node.platform_family? 'debian'
+    elsif platform_family? 'debian'
       # NOTE: file_name would be influxdb_<version> instead.
       file_name = "telegraf_#{new_resource.install_version}_amd64.deb"
       remote_file "#{Chef::Config[:file_cache_path]}/#{file_name}" do
@@ -116,7 +136,9 @@ action :create do
         options '--force-confdef --force-confold'
         action :install
       end
-    elsif node.platform_family? 'windows'
+    elsif platform_family? 'windows'
+
+      return unless telegraf_install?
 
       service "telegraf_#{new_resource.name}" do
         service_name 'telegraf'
@@ -143,9 +165,7 @@ action :create do
 
       windows_package 'telegraf' do
         source "#{ENV['ProgramW6432']}\\telegraf\\telegraf.exe"
-        # rubocop:disable Metrics/LineLength
         options "--service install --config-directory \"#{ENV['ProgramW6432']}\\telegraf\\telegraf.d\""
-        # rubocop:enable Metrics/LineLength
         installer_type :custom
         action :install
         only_if { !::Win32::Service.exists?('telegraf') }
@@ -159,17 +179,18 @@ action :create do
 
   service "telegraf_#{new_resource.name}" do
     service_name 'telegraf'
-    action [:enable, :start]
+    action :enable
+    delayed_action :start
   end
 end
 
 action :delete do
   service "telegraf_#{new_resource.name}" do
     service_name 'telegraf'
-    action [:stop, :disable]
+    action %i(stop disable)
   end
 
-  if node.platform_family? 'windows'
+  if platform_family? 'windows'
     if new_resource.install_type == 'package'
       chocolatey_package 'telegraf' do
         action :remove
@@ -191,4 +212,8 @@ action :delete do
       action :remove
     end
   end
+end
+
+action_class do
+  include Telegraf::Helpers
 end

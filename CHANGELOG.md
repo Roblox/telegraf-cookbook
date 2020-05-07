@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.0
+
+PR#76 - Remove deprecated `recommends`
+PR#77 - Add force option for debian to allow upgrades
+PR#79 - Make `telegraf_install` idempotent
+
+## 0.11.0
+
+PR#68 - CI tests/linter fixes
+PR#69 - change chocolatey and homebrew cookbooks to recommends
+PR#71 - add possibility for chocolatey options
+
+## 0.10.0
+
+- PR#67 - Add support for non `amd64` architectures
+
+## 0.9.2
+
+- PR#66 - Fix Chef-13 warning for https://docs.chef.io/deprecations_namespace_collisions.html
+- Cleanup all foodcritic warnings
+
 ## 0.9.1
 
 - PR#65 - Chef-13 amazon compatibility fix
