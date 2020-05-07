@@ -23,52 +23,80 @@ property :install_type, String, default: 'package'
 
 default_action :create
 
+action_class.class_eval do
+  def create_yum_repository
+    yum_repository 'telegraf' do
+      description 'InfluxDB Repository - RHEL \$releasever'
+      case node['platform']
+      when 'redhat'
+        baseurl  "#{node['telegraf']['package_url']}/rhel/\$releasever/\$basearch/stable"
+      when 'amazon'
+        baseurl  "#{node['telegraf']['package_url']}/centos/7/\$basearch/stable"
+      else
+        baseurl  "#{node['telegraf']['package_url']}/centos/\$releasever/\$basearch/stable"
+      end
+      gpgkey  "#{node['telegraf']['package_url']}/influxdb.key"
+      only_if { new_resource.include_repository }
+    end
+  end
+
+  def create_deb_repository
+    package 'apt-transport-https' do
+      only_if { new_resource.include_repository }
+    end
+
+    case node['kernel']['machine']
+    when 'x86_64'
+      telegraf_arch = 'amd64'
+    when 'i686', 'i386'
+      telegraf_arch = 'i386'
+    when 'armv7l', 'armv6l'
+      telegraf_arch = 'armhf'
+    when 'armv5l'
+      telegraf_arch = 'armel'
+    else
+      telegraf_arch = 'amd64'
+      Chef::Log.warn('Arch not detected properly, falling back to amd64')
+    end
+
+    apt_repository 'influxdb' do
+      uri "#{node['telegraf']['package_url']}/#{node['platform']}"
+      distribution node['lsb']['codename']
+      components ['stable']
+      arch telegraf_arch
+      key "#{node['telegraf']['package_url']}/influxdb.key"
+      only_if { new_resource.include_repository }
+    end
+  end
+
+  def install_telegraf_package(installation_action)
+    package 'telegraf' do
+      version new_resource.install_version
+      if platform_family? 'debian'
+        options '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
+      end
+      action installation_action
+    end
+  end
+
+  def install_telegraf_service(service_action)
+    service "telegraf_#{new_resource.name}" do
+      service_name 'telegraf'
+      action :enable
+      delayed_action service_action
+    end
+  end
+end
+
 action :create do
   @telegraf_version = new_resource.install_version
 
   case new_resource.install_type
   when 'package'
     if platform_family?('rhel', 'amazon')
-      yum_repository 'telegraf' do
-        description 'InfluxDB Repository - RHEL \$releasever'
-        case node['platform']
-        when 'redhat'
-          baseurl  "#{node['telegraf']['package_url']}/rhel/\$releasever/\$basearch/stable"
-        when 'amazon'
-          baseurl  "#{node['telegraf']['package_url']}/centos/7/\$basearch/stable"
-        else
-          baseurl  "#{node['telegraf']['package_url']}/centos/\$releasever/\$basearch/stable"
-        end
-        gpgkey  "#{node['telegraf']['package_url']}/influxdb.key"
-        only_if { new_resource.include_repository }
-      end
+      create_yum_repository
     elsif platform_family? 'debian'
-      package 'apt-transport-https' do
-        only_if { new_resource.include_repository }
-      end
-
-      case node['kernel']['machine']
-      when 'x86_64'
-        telegraf_arch = 'amd64'
-      when 'i686', 'i386'
-        telegraf_arch = 'i386'
-      when 'armv7l', 'armv6l'
-        telegraf_arch = 'armhf'
-      when 'armv5l'
-        telegraf_arch = 'armel'
-      else
-        telegraf_arch = 'amd64'
-        Chef::Log.warn('Arch not detected properly, falling back to amd64')
-      end
-
-      apt_repository 'influxdb' do
-        uri "#{node['telegraf']['package_url']}/#{node['platform']}"
-        distribution node['lsb']['codename']
-        components ['stable']
-        arch telegraf_arch
-        key "#{node['telegraf']['package_url']}/influxdb.key"
-        only_if { new_resource.include_repository }
-      end
+      create_deb_repository
     elsif platform_family? 'windows'
       include_recipe 'chocolatey'
     elsif platform_family? 'mac_os_x'
@@ -97,13 +125,7 @@ action :create do
         action :install
       end
     else
-      package 'telegraf' do
-        version new_resource.install_version
-        if platform_family? 'debian'
-          options '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
-        end
-        action :install
-      end
+      install_telegraf_package(:install)
     end
   when 'tarball'
     # TODO: implement me
@@ -177,11 +199,20 @@ action :create do
     raise "#{new_resource.install_type} is not a valid install type."
   end
 
-  service "telegraf_#{new_resource.name}" do
-    service_name 'telegraf'
-    action :enable
-    delayed_action :start
+  install_telegraf_service(:start)
+end
+
+action :upgrade do
+  if platform_family?('rhel', 'amazon')
+    create_yum_repository
+  elsif platform_family? 'debian'
+    create_deb_repository
+  else
+    raise "I do not support your platform: #{node['platform_family']}"
   end
+
+  install_telegraf_package(:upgrade)
+  install_telegraf_service(:restart)
 end
 
 action :delete do
