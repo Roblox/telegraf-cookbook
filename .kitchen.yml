@@ -9,19 +9,18 @@ provisioner:
   data_bags_path: test/integration/data_bags
   environments_path: test/environments
   environment: kitchen
+  require_chef_omnibus: "13.12.14"
 
 verifier:
   name: inspec
 
 platforms:
-  - name: ubuntu-15.04
-    attributes:
-        telegraf:
-          version: 1.4.1-1
   - name: ubuntu-16.04
     attributes:
         telegraf:
           version: 1.4.1-1
+  - name: ubuntu-18.04
+  - name: ubuntu-20.04
   - name: centos-6.8
     attributes:
         telegraf:
