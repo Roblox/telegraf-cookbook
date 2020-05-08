@@ -4,9 +4,9 @@ maintainer_email 'camden@northpage.com'
 license 'Apache-2.0'
 description 'Installs/Configures telegraf'
 long_description 'Installs/Configures telegraf'
-version '0.12.0'
-source_url 'https://github.com/NorthPage/telegraf-cookbook'
-issues_url 'https://github.com/NorthPage/telegraf-cookbook/issues'
+version '0.12.2'
+source_url 'https://github.com/Roblox/telegraf-cookbook'
+issues_url 'https://github.com/Roblox/telegraf-cookbook/issues'
 
 chef_version '>= 12.5' if respond_to?(:chef_version)
 
