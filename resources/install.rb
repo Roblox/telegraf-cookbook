@@ -207,6 +207,8 @@ action :upgrade do
     create_yum_repository
   elsif platform_family? 'debian'
     create_deb_repository
+  elsif platform_family? 'windows'
+    # do nothing
   else
     raise "I do not support your platform: #{node['platform_family']}"
   end
